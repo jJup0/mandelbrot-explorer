@@ -49,7 +49,7 @@ GLuint compileShader(GLenum shaderType, const std::string& source) {
     return shader;
 }
 
-int windowWidth = 800;
+int windowWidth = 1200;
 int windowHeight = 800;
 
 GLuint shaderProgram;
@@ -103,35 +103,12 @@ void scrollCallback4(GLFWwindow* window, double xoffset, double yoffset) {
     double mouseX, mouseY;
     glfwGetCursorPos(window, &mouseX, &mouseY);
 
-    float percentage_mouse_x = mouseX / windowWidth;
-    float percentage_mouse_y = mouseY / windowWidth;
-
     float ndcX = (2.0f * mouseX) / windowWidth - 1.0f;
     float ndcY = 1.0f - (2.0f * mouseY) / windowHeight;
 
-    float screenTopLeftX = (-1.0f) / zoom + pan_x;
-    float screenTopLeftY = (1.0f) / zoom + pan_y;
+    pan_x += ndcX * view_port_delta / 2.0f;
+    pan_y += ndcY * view_port_delta / (2.0f * aspectRatio);
 
-    printf("Vieport delta: %.2f\n", view_port_delta);
-    // printf("Prev  top left: (%.2f, %.2f)  ", screenTopLeftX, screenTopLeftY);
-
-    pan_x += ndcX * view_port_delta / zoom;
-    pan_y += ndcY * view_port_delta / zoom;
-
-    // printf("After top left: (%.2f, %.2f)\n", screenTopLeftX, screenTopLeftY);
-
-    // pan_x = screenTopLeftX * zoom + 1.0f;
-    // pan_y = screenTopLeftY * zoom - 1.0f;
-
-    // float newpan_x = screenTopLeftX * zoom + 1.0f;
-    // float newpan_y = screenTopLeftY * zoom - 1.0f;
-
-    // printf("Prev, new pan: (%.2f, %.2f) -> (%.2f, %.2f)\n", pan_x, pan_y, newpan_x, newpan_y);
-
-    // pan_x = newpan_x;
-    // pan_y = newpan_y;
-
-    println("Percentage mouse: (" << percentage_mouse_x << ", " << percentage_mouse_y << ")");
     updateShaderParameters();
 }
 
@@ -178,7 +155,7 @@ void print_loc_info(GLFWwindow* window) {
     print("MOUSE: (" << mouseX << ", " << mouseY << ")  ");
     print("NDC: (" << ndcX << ", " << ndcY << ")  ");
     println("Top left coords: (" << screenTopLeftX << ", " << screenTopLeftY << ")");
-    printf("PAN (%.2f, %.2f)\n", pan_x, pan_y);
+    printf("PAN (%.2f, %.2f), zoom: %.2f\n", pan_x, pan_y, zoom);
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
