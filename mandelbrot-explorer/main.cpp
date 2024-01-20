@@ -53,9 +53,9 @@ int windowWidth = 1200;
 int windowHeight = 800;
 
 GLuint shaderProgram;
-float zoom = 1.0f;   // Initial zoom level
-float pan_x = 0.0f;  // Initial pan in X direction
-float pan_y = 0.0f;  // Initial pan in Y direction
+double zoom = 1.0;
+double pan_x = 0.0; 
+double pan_y = 0.0;
 bool leftMousePressed = false;
 double lastX, lastY;
 
@@ -130,8 +130,8 @@ void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
         double deltaY = ypos - lastY;
 
         // Update pan based on the difference
-        pan_x -= 2 * static_cast<float>(deltaX) / (windowWidth * zoom);
-        pan_y += 2 * static_cast<float>(deltaY) / (windowHeight * aspectRatio * zoom);
+        pan_x -= 2 * static_cast<double>(deltaX) / (windowWidth * zoom);
+        pan_y += 2 * static_cast<double>(deltaY) / (windowHeight * aspectRatio * zoom);
 
         // Update the shader with the new zoom level and pan
         updateShaderParameters();

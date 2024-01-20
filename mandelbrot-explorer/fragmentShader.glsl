@@ -6,7 +6,7 @@ uniform float zoom;
 uniform vec2 pan;
 uniform float aspectRatio; 
 
-float MAX_ITER = 100;
+float MAX_ITER = 1000;
 
 
 // All components are in the range [0…1]
@@ -42,8 +42,8 @@ void main()
         float col = float(i) / float(MAX_ITER);
         
         // FragColor = vec4(col, col, col, 1.0);
-        if (i < 10){
-            FragColor = vec4(hsv2rgb(vec3(col, 1.0, float(i) / 10.0)), 1.0);
+        if (i < 100){
+            FragColor = vec4(hsv2rgb(vec3(col, 1.0, float(i) / 100.0)), 1.0);
         } else {
             FragColor = vec4(hsv2rgb(vec3(col, 1.0, 1.0)), 1.0);
         }
