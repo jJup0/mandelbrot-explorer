@@ -7,30 +7,29 @@
 #include <sstream>
 #include <string>
 
-#define println(message)                   \
-    do {                                   \
-        std::cout << message << std::endl; \
-    } while (false)
-
-#define print(message)        \
-    do {                      \
-        std::cout << message; \
-    } while (false)
-
 int windowWidth = 1200;
 int windowHeight = 800;
 
+int max_iterations = 300;
+
 GLuint shaderProgram;
 GLuint vertexShader;
-double zoom = 1.0;
-double pan_x = 0.0;
-double pan_y = 0.0;
+double zoom; 
+double pan_x;
+double pan_y;
 bool leftMousePressed = false;
 double lastX, lastY;
 
 bool use_double_precision = false;
+bool auto_switch_double_precision = true;
 
 float aspectRatio = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
+
+void reset_zoom_and_pan() {
+    zoom = 0.5;
+    pan_x = 0.0;
+    pan_y = 0.0;
+}
 
 std::string readShaderFile(const std::string& filePath) {
     std::ifstream file(filePath);
@@ -64,26 +63,34 @@ GLuint compileShader(GLenum shaderType, const std::string& source) {
     return shader;
 }
 
-void updateShaderParameters() {
+void update_all_shader_parameters() {
     GLint zoomLocation = glGetUniformLocation(shaderProgram, "zoom");
     GLint panLocation = glGetUniformLocation(shaderProgram, "pan");
-
+    GLint maxIterLocation = glGetUniformLocation(shaderProgram, "max_iterations");
     GLint aspectRatioLocation = glGetUniformLocation(shaderProgram, "aspectRatio");
 
     glUseProgram(shaderProgram);
     glUniform1f(zoomLocation, zoom);
     glUniform2f(panLocation, pan_x, pan_y);
+    glUniform1i(maxIterLocation, max_iterations);
     glUniform1f(aspectRatioLocation, aspectRatio);
 
+    GLint zoomDoubleLocation = glGetUniformLocation(shaderProgram, "zoom_double");
+    GLint panDoubleLocation = glGetUniformLocation(shaderProgram, "pan_double");
+    glUniform1d(zoomDoubleLocation, zoom);
+    glUniform2d(panDoubleLocation, pan_x, pan_y);
+}
 
-    //GLint zoomDoubleLocation = glGetUniformLocation(shaderProgram, "zoom_double");
-    //GLint panDoubleLocation = glGetUniformLocation(shaderProgram, "pan_double");
-    //glUniform1d(zoomDoubleLocation, zoom);
-    //glUniform2d(panDoubleLocation, pan_x, pan_y);
-
-    // println("pan: (" << pan_x << ", " << pan_y << ") || Zoom: " << zoom);
-    // float pan_x = pan_x
-    // println("top left: (" << pan_x << ", " << pan_y << ")");
+void change_max_iterations(bool increase) {
+    if (increase) {
+        max_iterations += max_iterations / 5;
+        max_iterations = std::min(max_iterations, 1000);
+    } else {
+        max_iterations = static_cast<int>(static_cast<float>(max_iterations) * 0.8);
+        max_iterations = std::max(max_iterations, 10);
+    }
+    printf("max iterations= %d\n", max_iterations);
+    update_all_shader_parameters();
 }
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
@@ -96,25 +103,56 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
     aspectRatio = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
 
     // Update the aspectRatio uniform in the shader
-    updateShaderParameters();
+    update_all_shader_parameters();
 }
 
-void set_double_precision(bool value) {
-    if (value) {
-        use_double_precision = true;
-
-    } else {
-        use_double_precision = true;
+void toggle_double_precision() {
+    use_double_precision = !use_double_precision;
+    std::string fragmentShaderSource;
+    if (use_double_precision) {
+        fragmentShaderSource = readShaderFile("fragmentShader_doubles.glsl");
     }
+    else {
+        fragmentShaderSource = readShaderFile("fragmentShader.glsl");
+    }
+
+    GLuint newFragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+
+    // Link the new shader program
+    GLuint newShaderProgram = glCreateProgram();
+    glAttachShader(newShaderProgram, vertexShader);
+    glAttachShader(newShaderProgram, newFragmentShader);
+    glLinkProgram(newShaderProgram);
+
+    // Cleanup the old shader program
+    glDeleteProgram(shaderProgram);
+
+    // Use the new shader program
+    glUseProgram(newShaderProgram);
+
+    // Update the current shader program
+    shaderProgram = newShaderProgram;
+
+    // Cleanup the old fragment shader
+    glDeleteShader(newFragmentShader);
+
+    update_all_shader_parameters();
 }
 
-void scrollCallback4(GLFWwindow* window, double xoffset, double yoffset) {
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     // Change zoom
     float viewport_width_before = 2.0f / zoom;
 
     float factor = std::pow(1.2f, static_cast<float>(yoffset));
 
     zoom *= factor;
+    if (auto_switch_double_precision) {
+        bool udp = zoom > 10'000;
+        if (udp != use_double_precision) {
+            printf("Double precision = %s\n", udp ? "true" : "false");
+            toggle_double_precision();
+        }
+    }
 
     float viewport_width_after = 2.0f / zoom;
     float view_port_delta = viewport_width_before - viewport_width_after;
@@ -129,7 +167,7 @@ void scrollCallback4(GLFWwindow* window, double xoffset, double yoffset) {
     pan_x += ndcX * view_port_delta / 2.0f;
     pan_y += ndcY * view_port_delta / (2.0f * aspectRatio);
 
-    updateShaderParameters();
+    update_all_shader_parameters();
 }
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -154,7 +192,7 @@ void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
         pan_y += 2 * static_cast<double>(deltaY) / (windowHeight * aspectRatio * zoom);
 
         // Update the shader with the new zoom level and pan
-        updateShaderParameters();
+        update_all_shader_parameters();
 
         // Update last mouse position
         lastX = xpos;
@@ -172,64 +210,35 @@ void print_loc_info(GLFWwindow* window) {
     float screenTopLeftX = (-1.0f) / zoom + pan_x;
     float screenTopLeftY = (1.0f) / zoom + pan_y;
 
-    print("MOUSE: (" << mouseX << ", " << mouseY << ")  ");
-    print("NDC: (" << ndcX << ", " << ndcY << ")  ");
-    println("Top left coords: (" << screenTopLeftX << ", " << screenTopLeftY << ")");
     printf("PAN (%.2f, %.2f), zoom: %.2f\n", pan_x, pan_y, zoom);
 }
 
 
-void switch_shader() {
-    use_double_precision = !use_double_precision;
-    std::string fragmentShaderSource;
-    if (use_double_precision) {
-        fragmentShaderSource = readShaderFile("fragmentShader_doubles.glsl");
-    }
-    else {
-        fragmentShaderSource = readShaderFile("fragmentShader.glsl");
-    }
-
-    GLuint newFragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-
-
-    // Link the new shader program
-    GLuint newShaderProgram = glCreateProgram();
-    glAttachShader(newShaderProgram, vertexShader);
-    glAttachShader(newShaderProgram, newFragmentShader);
-    glLinkProgram(newShaderProgram);
-
-    // Cleanup the old shader program
-    glDeleteProgram(shaderProgram);
-
-    // Use the new shader program
-    glUseProgram(newShaderProgram);
-
-    // Update the current shader program
-    shaderProgram = newShaderProgram;
-
-    // Cleanup the old fragment shader
-    glDeleteShader(newFragmentShader);
-
-    updateShaderParameters();
-}
-
-
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS) {
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         switch (key) {
             case GLFW_KEY_R:
-                zoom = 1.0f;
-                pan_x = 0.0f;
-                pan_y = 0.0f;
-
+                reset_zoom_and_pan();
                 // Update the shader with the new zoom level and pan
-                updateShaderParameters();
+                update_all_shader_parameters();
+                printf("Resetting zoom and pan");
+                break;
+            case GLFW_KEY_A:
+                auto_switch_double_precision = !auto_switch_double_precision;
+                printf("Auto double precision set to %s", auto_switch_double_precision ? "true" : "false");
                 break;
             case GLFW_KEY_SPACE:
                 print_loc_info(window);
                 break;
             case GLFW_KEY_X:
-                switch_shader();
+                toggle_double_precision();
+                printf("Double precision set to %s", use_double_precision? "true" : "false");
+                break;
+            case GLFW_KEY_UP:
+                change_max_iterations(true);
+                break;
+            case GLFW_KEY_DOWN:
+                change_max_iterations(false);
                 break;
         }
     }
@@ -248,9 +257,6 @@ void updateFPSCounter(GLFWwindow* window) {
         fps = static_cast<int>(frameCount / delta);
         frameCount = 0;
         lastTime = currentTime;
-
-        // Print FPS to console
-        // std::cout << "FPS: " << fps << std::endl;
     }
     // Display FPS on the window title bar
     std::ostringstream title;
@@ -335,7 +341,7 @@ int main() {
     glfwSetKeyCallback(window, keyCallback);
 
     // Set up scroll callback
-    glfwSetScrollCallback(window, scrollCallback4);
+    glfwSetScrollCallback(window, scrollCallback);
 
     // Set up mouse button callback
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
@@ -343,7 +349,8 @@ int main() {
     // Set up cursor position callback
     glfwSetCursorPosCallback(window, cursorPosCallback);
 
-    updateShaderParameters();
+    reset_zoom_and_pan();
+    update_all_shader_parameters();
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         updateFPSCounter(window);

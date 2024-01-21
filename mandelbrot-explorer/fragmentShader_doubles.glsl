@@ -4,15 +4,10 @@
 in vec2 coord;
 out vec4 FragColor;
 
-// uniform double zoom_double;
-// uniform dvec2 pan_double;
-uniform float zoom;
-uniform vec2 pan;
+uniform double zoom_double;
+uniform dvec2 pan_double;
 uniform float aspectRatio; 
-
-
-float MAX_ITER = 100;
-
+uniform int max_iterations;
 
 // All components are in the range [0…1]
 vec3 hsv2rgb(vec3 c) {
@@ -24,12 +19,12 @@ vec3 hsv2rgb(vec3 c) {
 
 void main()
 {
-    dvec2 z = (dvec2(coord.x, coord.y * (1.0 / aspectRatio))) / zoom + pan;
+    dvec2 z = (dvec2(coord.x, coord.y * (1.0 / aspectRatio))) / zoom_double + pan_double;
     dvec2 c = z;
 
     int i;
 
-    for (i = 0; i < MAX_ITER; i++)
+    for (i = 0; i < max_iterations; i++)
     {
         double xtemp = z.x * z.x - z.y * z.y + c.x;
         z.y = 2.0 * z.x * z.y + c.y;
@@ -40,17 +35,16 @@ void main()
     }
 
 
-    if (i == MAX_ITER){
-        FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    if (i == max_iterations){
+        float white_shade = 0.9;
+        FragColor = vec4(white_shade, white_shade, white_shade, white_shade);
     } else {
-        // FragColor = getColor(MAX_ITER);
-        float col = float(i) / float(MAX_ITER);
-        
-        // FragColor = vec4(col, col, col, 1.0);
-        if (i < 50){
-            FragColor = vec4(hsv2rgb(vec3(col, 1.0, float(i) / 10.0)), 1.0);
+        float col = float(i) / float(max_iterations);
+        int cuttoff = min(max_iterations/2, 50);
+        if (i < cuttoff){
+            FragColor = vec4(hsv2rgb(vec3(col, 1.0, float(i) / cuttoff)), 1.0);
         } else {
-            FragColor = vec4(hsv2rgb(vec3(0.7, col, 1.0)), 1.0);
+            FragColor = vec4(hsv2rgb(vec3(col, 1.0, 1.0)), 1.0);
         }
     }
 }
