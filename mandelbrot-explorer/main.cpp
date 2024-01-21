@@ -14,7 +14,7 @@ int max_iterations = 300;
 
 GLuint shaderProgram;
 GLuint vertexShader;
-double zoom; 
+double zoom;
 double pan_x;
 double pan_y;
 bool leftMousePressed = false;
@@ -64,21 +64,23 @@ GLuint compileShader(GLenum shaderType, const std::string& source) {
 }
 
 void update_all_shader_parameters() {
-    GLint zoomLocation = glGetUniformLocation(shaderProgram, "zoom");
-    GLint panLocation = glGetUniformLocation(shaderProgram, "pan");
+    glUseProgram(shaderProgram);
+    if (use_double_precision) {
+        GLint zoomDoubleLocation = glGetUniformLocation(shaderProgram, "zoom_double");
+        GLint panDoubleLocation = glGetUniformLocation(shaderProgram, "pan_double");
+        glUniform1d(zoomDoubleLocation, zoom);
+        glUniform2d(panDoubleLocation, pan_x, pan_y);
+    } else {
+        GLint zoomLocation = glGetUniformLocation(shaderProgram, "zoom");
+        GLint panLocation = glGetUniformLocation(shaderProgram, "pan");
+        glUniform1f(zoomLocation, zoom);
+        glUniform2f(panLocation, pan_x, pan_y);
+    }
+
     GLint maxIterLocation = glGetUniformLocation(shaderProgram, "max_iterations");
     GLint aspectRatioLocation = glGetUniformLocation(shaderProgram, "aspectRatio");
-
-    glUseProgram(shaderProgram);
-    glUniform1f(zoomLocation, zoom);
-    glUniform2f(panLocation, pan_x, pan_y);
     glUniform1i(maxIterLocation, max_iterations);
     glUniform1f(aspectRatioLocation, aspectRatio);
-
-    GLint zoomDoubleLocation = glGetUniformLocation(shaderProgram, "zoom_double");
-    GLint panDoubleLocation = glGetUniformLocation(shaderProgram, "pan_double");
-    glUniform1d(zoomDoubleLocation, zoom);
-    glUniform2d(panDoubleLocation, pan_x, pan_y);
 }
 
 void change_max_iterations(bool increase) {
@@ -110,10 +112,9 @@ void toggle_double_precision() {
     use_double_precision = !use_double_precision;
     std::string fragmentShaderSource;
     if (use_double_precision) {
-        fragmentShaderSource = readShaderFile("fragmentShader_doubles.glsl");
-    }
-    else {
-        fragmentShaderSource = readShaderFile("fragmentShader.glsl");
+        fragmentShaderSource = readShaderFile("shaders/fragmentShader_doubles.glsl");
+    } else {
+        fragmentShaderSource = readShaderFile("shaders/fragmentShader.glsl");
     }
 
     GLuint newFragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
@@ -213,7 +214,6 @@ void print_loc_info(GLFWwindow* window) {
     printf("PAN (%.2f, %.2f), zoom: %.2f\n", pan_x, pan_y, zoom);
 }
 
-
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         switch (key) {
@@ -232,7 +232,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 break;
             case GLFW_KEY_X:
                 toggle_double_precision();
-                printf("Double precision set to %s", use_double_precision? "true" : "false");
+                printf("Double precision set to %s", use_double_precision ? "true" : "false");
                 break;
             case GLFW_KEY_UP:
                 change_max_iterations(true);
@@ -293,9 +293,9 @@ int main() {
     }
 
     // Load shaders from external files
-    std::string vertexShaderSource = readShaderFile("vertexShader.glsl");
-    std::string fragmentShaderSource = readShaderFile("fragmentShader.glsl");
-    std::string fragmentShaderSourceDouble = readShaderFile("fragmentShader_doubles.glsl");
+    std::string vertexShaderSource = readShaderFile("shaders/vertexShader.glsl");
+    std::string fragmentShaderSource = readShaderFile("shaders/fragmentShader.glsl");
+    std::string fragmentShaderSourceDouble = readShaderFile("shaders/fragmentShader_doubles.glsl");
 
     if (vertexShaderSource.empty() || fragmentShaderSource.empty() || fragmentShaderSourceDouble.empty()) {
         std::cerr << "Failed to load shader sources" << std::endl;
@@ -325,9 +325,8 @@ int main() {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-    // Set vertex data
+    // set vertices to be a flat square to act as a canvas
     float vertices[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
-
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Set vertex attribute pointers
@@ -336,21 +335,18 @@ int main() {
 
     // frame resize callback
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-
     // Set up key callback
     glfwSetKeyCallback(window, keyCallback);
-
     // Set up scroll callback
     glfwSetScrollCallback(window, scrollCallback);
-
     // Set up mouse button callback
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
-
     // Set up cursor position callback
     glfwSetCursorPosCallback(window, cursorPosCallback);
 
     reset_zoom_and_pan();
     update_all_shader_parameters();
+
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         updateFPSCounter(window);

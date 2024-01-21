@@ -1,6 +1,8 @@
-x64/
 external_libs/
 glew32.dll
 **/*vcxproj*
 .vs/
 old_scrolls.txt
+**/out/
+**/Debug/
+**/x64/
