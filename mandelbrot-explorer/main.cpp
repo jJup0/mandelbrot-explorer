@@ -17,6 +17,21 @@
         std::cout << message; \
     } while (false)
 
+int windowWidth = 1200;
+int windowHeight = 800;
+
+GLuint shaderProgram;
+GLuint vertexShader;
+double zoom = 1.0;
+double pan_x = 0.0;
+double pan_y = 0.0;
+bool leftMousePressed = false;
+double lastX, lastY;
+
+bool use_double_precision = false;
+
+float aspectRatio = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
+
 std::string readShaderFile(const std::string& filePath) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
@@ -49,27 +64,22 @@ GLuint compileShader(GLenum shaderType, const std::string& source) {
     return shader;
 }
 
-int windowWidth = 1200;
-int windowHeight = 800;
-
-GLuint shaderProgram;
-double zoom = 1.0;
-double pan_x = 0.0; 
-double pan_y = 0.0;
-bool leftMousePressed = false;
-double lastX, lastY;
-
-float aspectRatio = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
-
 void updateShaderParameters() {
     GLint zoomLocation = glGetUniformLocation(shaderProgram, "zoom");
     GLint panLocation = glGetUniformLocation(shaderProgram, "pan");
+
     GLint aspectRatioLocation = glGetUniformLocation(shaderProgram, "aspectRatio");
 
     glUseProgram(shaderProgram);
     glUniform1f(zoomLocation, zoom);
     glUniform2f(panLocation, pan_x, pan_y);
     glUniform1f(aspectRatioLocation, aspectRatio);
+
+
+    //GLint zoomDoubleLocation = glGetUniformLocation(shaderProgram, "zoom_double");
+    //GLint panDoubleLocation = glGetUniformLocation(shaderProgram, "pan_double");
+    //glUniform1d(zoomDoubleLocation, zoom);
+    //glUniform2d(panDoubleLocation, pan_x, pan_y);
 
     // println("pan: (" << pan_x << ", " << pan_y << ") || Zoom: " << zoom);
     // float pan_x = pan_x
@@ -89,11 +99,21 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
     updateShaderParameters();
 }
 
+void set_double_precision(bool value) {
+    if (value) {
+        use_double_precision = true;
+
+    } else {
+        use_double_precision = true;
+    }
+}
+
 void scrollCallback4(GLFWwindow* window, double xoffset, double yoffset) {
     // Change zoom
     float viewport_width_before = 2.0f / zoom;
 
     float factor = std::pow(1.2f, static_cast<float>(yoffset));
+
     zoom *= factor;
 
     float viewport_width_after = 2.0f / zoom;
@@ -158,6 +178,42 @@ void print_loc_info(GLFWwindow* window) {
     printf("PAN (%.2f, %.2f), zoom: %.2f\n", pan_x, pan_y, zoom);
 }
 
+
+void switch_shader() {
+    use_double_precision = !use_double_precision;
+    std::string fragmentShaderSource;
+    if (use_double_precision) {
+        fragmentShaderSource = readShaderFile("fragmentShader_doubles.glsl");
+    }
+    else {
+        fragmentShaderSource = readShaderFile("fragmentShader.glsl");
+    }
+
+    GLuint newFragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+
+
+    // Link the new shader program
+    GLuint newShaderProgram = glCreateProgram();
+    glAttachShader(newShaderProgram, vertexShader);
+    glAttachShader(newShaderProgram, newFragmentShader);
+    glLinkProgram(newShaderProgram);
+
+    // Cleanup the old shader program
+    glDeleteProgram(shaderProgram);
+
+    // Use the new shader program
+    glUseProgram(newShaderProgram);
+
+    // Update the current shader program
+    shaderProgram = newShaderProgram;
+
+    // Cleanup the old fragment shader
+    glDeleteShader(newFragmentShader);
+
+    updateShaderParameters();
+}
+
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         switch (key) {
@@ -171,6 +227,9 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 break;
             case GLFW_KEY_SPACE:
                 print_loc_info(window);
+                break;
+            case GLFW_KEY_X:
+                switch_shader();
                 break;
         }
     }
@@ -230,14 +289,15 @@ int main() {
     // Load shaders from external files
     std::string vertexShaderSource = readShaderFile("vertexShader.glsl");
     std::string fragmentShaderSource = readShaderFile("fragmentShader.glsl");
+    std::string fragmentShaderSourceDouble = readShaderFile("fragmentShader_doubles.glsl");
 
-    if (vertexShaderSource.empty() || fragmentShaderSource.empty()) {
+    if (vertexShaderSource.empty() || fragmentShaderSource.empty() || fragmentShaderSourceDouble.empty()) {
         std::cerr << "Failed to load shader sources" << std::endl;
         return -1;
     }
 
     // Compile shaders
-    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
     GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
 
     // Link shader program
@@ -248,7 +308,6 @@ int main() {
     glLinkProgram(shaderProgram);
 
     // Cleanup shaders
-    glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
     // Create Vertex Array Object (VAO) and Vertex Buffer Object (VBO)
@@ -299,6 +358,9 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // Cleanup shaders
+    glDeleteShader(vertexShader);
 
     // Cleanup
     glDeleteVertexArrays(1, &VAO);
