@@ -1,5 +1,7 @@
 # Mandelbrot Explorer
 
+![Screenshot of the GUI](window_capture.PNG)
+
 ## Features
 
 - Intuitive zoom and pan behavior
